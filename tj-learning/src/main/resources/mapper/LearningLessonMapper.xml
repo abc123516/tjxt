@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tianji.learning.mapper.LearningLessonMapper">
+
+    <select id="queryTotalPlan" resultType="java.lang.Integer">
+        select SUM(week_freq)
+        from tj_learning.learning_lesson
+        where user_id = #{userId}
+        AND status in(0,1) AND plan_status=1
+    </select>
+</mapper>
