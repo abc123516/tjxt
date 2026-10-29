@@ -21,8 +21,8 @@ import javax.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.DelayQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 //学习记录任务延迟处理器
 @Slf4j
@@ -33,16 +33,42 @@ public class LearningRecordDelayTaskHandler {
     private final DelayQueue<DelayTask<RecordTaskData>> queue = new DelayQueue<>();
     private final StringRedisTemplate redisTemplate;
     private final static String RECORD_KEY_TEMPLATE = "learning:record:{}";
-    private static volatile Boolean begin=true;
+    private volatile Boolean begin=true;
     private final ILearningLessonService learningLessonService;
     private final LearningRecordMapper learningRecordMapper;
+    private ThreadPoolExecutor executor;
     @PostConstruct
+//    public void init(){
+//        CompletableFuture.runAsync(this::execute);
+//    }
+    //改造成多线程
     public void init(){
-        CompletableFuture.runAsync(this::execute);
+        int corePoolSize = Runtime.getRuntime().availableProcessors();
+        AtomicInteger idx=new AtomicInteger(1);
+        this.executor=new ThreadPoolExecutor(
+                corePoolSize,   // 核心线程数 = CPU 核数
+                corePoolSize,  // 最大线程数 = CPU 核数
+                0L, TimeUnit.MILLISECONDS, //允许线程超时回收
+                new LinkedBlockingQueue<>(),
+                r->{
+                    Thread t = new Thread(r, "learning-record-delay-" + idx.getAndIncrement());
+                    t.setDaemon(false);        // 跟随 Spring 生命周期关闭，正常应是非守护
+                    return t;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        for (int i = 0; i < corePoolSize; i++) {
+            executor.execute(this::execute);   // 每个线程都进入 while 循环
+        }
+        log.info("学习记录延迟任务线程池启动，消费线程数：{}", corePoolSize);
+
     }
     @PreDestroy
     public void destroy(){
         begin=false;
+        if(executor!=null){
+            executor.shutdownNow();
+        }
         log.debug("取消延迟队列执行");
     }
 
