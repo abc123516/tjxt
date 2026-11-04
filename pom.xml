@@ -18,6 +18,7 @@
         <module>tj-course</module>
         <module>tj-search</module>
         <module>tj-learning</module>
+        <module>tj-remark</module>
         <module>tj-pay</module>
         <module>tj-trade</module>
         <module>tj-exam</module>
