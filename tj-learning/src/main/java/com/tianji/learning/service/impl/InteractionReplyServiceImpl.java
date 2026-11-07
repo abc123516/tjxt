@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tianji.api.client.remark.RemarkClient;
 import com.tianji.api.client.user.UserClient;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.common.autoconfigure.mq.RabbitMqHelper;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.exceptions.BadRequestException;
 import com.tianji.common.exceptions.DbException;
@@ -20,16 +21,19 @@ import com.tianji.learning.domain.vo.ReplyVO;
 import com.tianji.learning.enums.QuestionStatus;
 import com.tianji.learning.mapper.InteractionQuestionMapper;
 import com.tianji.learning.mapper.InteractionReplyMapper;
+import com.tianji.learning.mq.message.ReplyNewMessage;
 import com.tianji.learning.service.IInteractionReplyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.tianji.common.constants.MqConstants;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Collectors;
+
+
+import static com.tianji.common.constants.MqConstants.Exchange.LEARNING_EXCHANGE;
 
 /**
  * <p>
@@ -47,6 +51,7 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
     private final InteractionQuestionMapper questionMapper;
     private final UserClient userClient;
     private final RemarkClient remarkClient;
+    private final RabbitMqHelper mqHelper;
 
     /**
      * 新增回答或评论
@@ -107,6 +112,12 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
                     .set(InteractionQuestion::getStatus, QuestionStatus.UN_CHECK)
                     .eq(InteractionQuestion::getId, replyDTO.getQuestionId()));
         }
+        //7 发送mq消息，表示回答了一个问题或评论了一个回答
+        mqHelper.send(
+                LEARNING_EXCHANGE,
+                MqConstants.Key.WRITE_REPLY,
+                ReplyNewMessage.of(reply.getUserId())
+        );
         log.debug("新增回答或评论成功，id={}, questionId={}, answerId={}, isStudent={}",
                 reply.getId(), replyDTO.getQuestionId(), replyDTO.getAnswerId(), replyDTO.getIsStudent());
     }

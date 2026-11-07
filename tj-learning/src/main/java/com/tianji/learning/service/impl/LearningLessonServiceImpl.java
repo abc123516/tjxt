@@ -22,8 +22,10 @@ import com.tianji.learning.domain.vo.LearningPlanPageVO;
 import com.tianji.learning.domain.vo.LearningPlanVO;
 import com.tianji.learning.enums.LessonStatus;
 import com.tianji.learning.enums.PlanStatus;
+import com.tianji.learning.enums.PointsRecordType;
 import com.tianji.learning.mapper.LearningLessonMapper;
 import com.tianji.learning.mapper.LearningRecordMapper;
+import com.tianji.learning.mapper.PointsRecordMapper;
 import com.tianji.learning.service.ILearningLessonService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +60,7 @@ public class LearningLessonServiceImpl extends ServiceImpl<LearningLessonMapper,
     private final CourseClient courseClient;
     private final CatalogueClient catalogueClient;
     private final LearningRecordMapper learningRecordMapper;
+    private final PointsRecordMapper pointsRecordMapper;
     @Override
     public void addUserLessons(Long userId, List<Long> courseIds) {
         //1.根据课程IDS查询课程信息
@@ -355,7 +358,11 @@ public class LearningLessonServiceImpl extends ServiceImpl<LearningLessonMapper,
         //2.2 获取本周计划学习小节数量,查询学习课程表，求和week_feq这个元素
         Integer weekTotalPlan = getBaseMapper().queryTotalPlan(userId);
         learningPlanPageVO.setWeekTotalPlan(weekTotalPlan);
-        //2.3 TODO 获取本周学习积分
+        //2.3 获取本周学习积分：只统计“课程学习”类型的积分，时间范围与上面一致
+        Integer weekPoints = pointsRecordMapper.getPointsByUserIdAndTypeAndTime(
+                userId, PointsRecordType.LEARNING, begin, end
+        );
+        learningPlanPageVO.setWeekPoints(weekPoints == null ? 0 : weekPoints);
         //3  查询学习课程表和课程表，获取本周计划学习的每个课程的学习进度
         Page<LearningLesson> page = lambdaQuery()
                 .eq(LearningLesson::getUserId, userId)
