@@ -5,6 +5,8 @@ import com.tianji.api.dto.course.CourseFullInfoDTO;
 import com.tianji.api.dto.leanring.LearningLessonDTO;
 import com.tianji.api.dto.leanring.LearningRecordDTO;
 import com.tianji.api.dto.leanring.LearningRecordFormDTO;
+import com.tianji.common.autoconfigure.mq.RabbitMqHelper;
+import com.tianji.common.constants.MqConstants;
 import com.tianji.common.exceptions.DbException;
 import com.tianji.common.utils.BeanUtils;
 import com.tianji.common.utils.UserContext;
@@ -46,6 +48,8 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
     private final CourseClient courseClient;
 
     private final LearningRecordDelayTaskHandler learningRecordDelayTaskHandler;
+
+    private final RabbitMqHelper mqHelper;
     @Override
     public LearningLessonDTO queryLearningRecordByCourse(Long courseId) {
        //1  获取当前登录用户
@@ -85,7 +89,7 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
             throw new RuntimeException("用户未登录");
         }
         //2 判断小节类型，视频？考试？
-        boolean finished=false;//是否全部小节学完
+        boolean finished=false;//是否有小节学完
         if(learningRecordFormDTO.getSectionType()== SectionType.EXAM.getValue()){
             //2.1 如果是考试
              finished = handleExam(userId, learningRecordFormDTO);
@@ -99,6 +103,12 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         }
         //3 如果学完，更新课表状态为已学完
         handleLearningLesson(learningRecordFormDTO);
+        //4 有新学完的小节或者考试，发送mq消息
+        mqHelper.send(
+                MqConstants.Exchange.LEARNING_EXCHANGE,
+                MqConstants.Key.LEARN_SECTION,
+                userId
+        );
 
     }
     private void handleLearningLesson(LearningRecordFormDTO learningRecordFormDTO) {
